@@ -73,6 +73,25 @@ async function route(request, env, ctx) {
 
     // Lấy cấu hình theo NGƯỜI (multi-user). Xem getUserConfig ở cuối file.
     const cfg = getUserConfig(env, userId);
+
+    // Chẩn đoán: /sowork whoami -> xem Worker nhận diện bạn thế nào (che token)
+    if (sub === 'whoami') {
+      let mode = 'single-user (KHÔNG có USERS_JSON) → ai cũng nhận cấu hình của chủ';
+      if (env.USERS_JSON) {
+        try { const u = JSON.parse(env.USERS_JSON); mode = `multi-user, ${Object.keys(u).length} người; bạn ${u[userId] ? 'CÓ' : 'KHÔNG'} trong danh sách`; }
+        catch { mode = '⚠️ USERS_JSON SAI CÚ PHÁP (JSON lỗi) → Worker bỏ qua'; }
+      }
+      const mask = s => s ? `${String(s).slice(0, 6)}…(${String(s).length})` : '(trống)';
+      const cfgInfo = cfg ? `repo=${cfg.repo || '(none)'}, groupId=${cfg.groupId || '(mặc định)'}, refreshToken=${mask(cfg.refreshToken)}` : '(không khớp ai → sẽ bị từ chối)';
+      // Gọi thật để biết refreshToken này thuộc TÀI KHOẢN SoWork nào
+      let acct = '(không kiểm tra được)';
+      if (cfg && cfg.apiKey && cfg.refreshToken) {
+        try { const a = await soworkAuth(cfg); acct = `${a.userName} (uid ${String(a.userId).slice(0, 8)}…)`; }
+        catch (e) { acct = 'lỗi: ' + (e.message || e); }
+      }
+      return json({ response_type: 'ephemeral', text: `🔎 *whoami*\nuser_id: \`${userId}\`\nMode: ${mode}\nCấu hình: ${cfgInfo}\n👉 Tài khoản SoWork của token: *${acct}*` });
+    }
+
     if (!cfg || !cfg.apiKey || !cfg.refreshToken) {
       return json({ response_type: 'ephemeral', text: '🚫 Bạn chưa được cấu hình để dùng lệnh này (chưa có trong USERS_JSON).' });
     }
