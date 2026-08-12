@@ -2,13 +2,19 @@ name: SoWork Keep Alive
 
 on:
   schedule:
-    # Cron chạy DÀY (mỗi 20 phút) trong 07:00–22:40 giờ VN, Thứ 2–Thứ 6.
-    #   */20 0-15 * * 1-5  (giờ UTC)  =  00:00–15:40 UTC  =  07:00–22:40 VN
-    # Vì cron GitHub hay trễ/bỏ lượt, chạy dày để luôn có lượt "bắt kịp".
+    # QUAN TRỌNG: TRÁNH phút :00 đầu giờ — đó là lúc scheduler GitHub nghẽn nặng nhất,
+    # lượt đúng :00 hay bị HOÃN 15–45 phút hoặc BỎ LUỘT. Trước đây lượt sáng rơi đúng
+    # 00:00 UTC (07:00 VN) nên hay KHÔNG lên online buổi sáng.
+    #
+    # Giờ sáng đầu ngày (00:00–00:59 UTC = 07:00–07:59 VN): chạy DÀY (~8 phút/lượt)
+    # để chắc chắn bắt được ca đầu ngày ngay cả khi vài lượt bị bỏ.
+    - cron: '6,14,22,30,38,46,54 0 * * 1-5'
+    # Trong ngày (01:00–15:00 UTC = 08:00–22:00 VN): mỗi 20 phút, LỆCH khỏi phút :00.
+    - cron: '5,25,45 1-15 * * 1-5'
+    #
     # Mỗi lượt trước tiên KIỂM TRA đã online chưa:
     #   - Đang online (một ca khác đang giữ) -> thoát ngay, không đá phiên, không tốn thời gian.
     #   - Chưa online -> mới thật sự giữ phiên (RUN_MINUTES).
-    - cron: '*/20 0-15 * * 1-5'
   workflow_dispatch: # Cho phép bấm chạy thủ công
 
 jobs:
