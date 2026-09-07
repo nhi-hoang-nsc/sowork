@@ -20,6 +20,9 @@ const vnClock = () => vnNow().toLocaleTimeString('vi-VN', { hour: '2-digit', min
 
 const RUN_MINUTES = parseInt(process.env.RUN_MINUTES || '350', 10);
 const STOP_HOUR_VN = parseInt(process.env.STOP_HOUR_VN || '24', 10);
+// CONTINUOUS=1 -> giữ Online 24h các ngày trong tuần (T2–T6), chỉ NGHỈ Thứ 7 & Chủ Nhật (giờ VN).
+// Bỏ qua mốc dừng theo giờ (STOP_HOUR_VN) và random tắt sớm; chỉ dừng khi sang cuối tuần.
+const CONTINUOUS = process.env.CONTINUOUS === '1';
 const GROUP_ID = process.env.SOWORK_GROUP_ID || '5yBGdkKFdacSqo4bWb2j';
 const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL;
 const SLACK_USER_ID = process.env.SLACK_USER_ID; // member ID (U...) để tag; có thể để trống
@@ -81,8 +84,8 @@ async function isPresent(idToken, userId) {
   const start = vnNow();
   console.log(`[TIME] Bat dau luc (VN): ${start.getHours()}:${String(start.getMinutes()).padStart(2, '0')}`);
 
-  // Vào làm "muộn" ngẫu nhiên nếu đang đầu giờ sáng (7:00–7:15)
-  if (start.getHours() === 7 && start.getMinutes() <= 15) {
+  // Vào làm "muộn" ngẫu nhiên nếu đang đầu giờ sáng (7:00–7:15) — bỏ qua khi chạy 24h liên tục.
+  if (!CONTINUOUS && start.getHours() === 7 && start.getMinutes() <= 15) {
     const d = rand(0, 10);
     console.log(`[RANDOM] Dau gio 7AM -> delay ${d} phut cho tu nhien...`);
     await delay(d * 60 * 1000);
@@ -186,13 +189,22 @@ async function isPresent(idToken, userId) {
     let online = true; // trạng thái presence gần nhất
     while (Date.now() < deadline) {
       const now = vnNow();
-      if (now.getHours() >= STOP_HOUR_VN || (STOP_HOUR_VN === 24 && now.getHours() === 0)) {
-        console.log('[STOP] Toi mat gio nghi -> off.');
-        break;
-      }
-      if (now.getHours() === 23 && Math.random() > 0.6) {
-        console.log('[RANDOM] 23PM -> off som ngau nhien.');
-        break;
+      if (CONTINUOUS) {
+        // Chạy 24h; chỉ dừng khi bước sang cuối tuần (Thứ 7 = 6, Chủ Nhật = 0) theo giờ VN.
+        const day = now.getDay();
+        if (day === 6 || day === 0) {
+          console.log('[STOP] Cuoi tuan (VN) -> off.');
+          break;
+        }
+      } else {
+        if (now.getHours() >= STOP_HOUR_VN || (STOP_HOUR_VN === 24 && now.getHours() === 0)) {
+          console.log('[STOP] Toi mat gio nghi -> off.');
+          break;
+        }
+        if (now.getHours() === 23 && Math.random() > 0.6) {
+          console.log('[RANDOM] 23PM -> off som ngau nhien.');
+          break;
+        }
       }
 
       await page.waitForTimeout(rand(45000, 90000));

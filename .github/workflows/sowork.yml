@@ -2,19 +2,17 @@ name: SoWork Keep Alive
 
 on:
   schedule:
-    # QUAN TRỌNG: TRÁNH phút :00 đầu giờ — đó là lúc scheduler GitHub nghẽn nặng nhất,
-    # lượt đúng :00 hay bị HOÃN 15–45 phút hoặc BỎ LUỘT. Trước đây lượt sáng rơi đúng
-    # 00:00 UTC (07:00 VN) nên hay KHÔNG lên online buổi sáng.
+    # MỤC TIÊU: Online 24h các ngày trong tuần (T2–T6 giờ VN), NGHỈ Thứ 7 & Chủ Nhật.
+    # VN = UTC+7, nên "T2 00:00 → T6 24:00 VN" = "CN 17:00 → T6 17:00 UTC". Chia 3 dòng cron:
     #
-    # Giờ sáng đầu ngày (00:00–00:59 UTC = 07:00–07:59 VN): chạy DÀY (~8 phút/lượt)
-    # để chắc chắn bắt được ca đầu ngày ngay cả khi vài lượt bị bỏ.
-    - cron: '6,14,22,30,38,46,54 0 * * 1-5'
-    # Trong ngày (01:00–15:00 UTC = 08:00–22:00 VN): mỗi 20 phút, LỆCH khỏi phút :00.
-    - cron: '5,25,45 1-15 * * 1-5'
+    # TRÁNH phút :00 (scheduler GitHub nghẽn nhất, hay hoãn/bỏ lượt) -> dùng phút lệch, mỗi ~15'.
+    - cron: '3,18,33,48 17-23 * * 0'   # CN 17:00–23:59 UTC = T2 00:00–06:59 VN
+    - cron: '3,18,33,48 * * * 1-4'     # T2–T5 cả ngày UTC   = T2 07:00 → T6 06:59 VN
+    - cron: '3,18,33,48 0-16 * * 5'    # T6 00:00–16:59 UTC  = T6 07:00–23:59 VN
     #
     # Mỗi lượt trước tiên KIỂM TRA đã online chưa:
     #   - Đang online (một ca khác đang giữ) -> thoát ngay, không đá phiên, không tốn thời gian.
-    #   - Chưa online -> mới thật sự giữ phiên (RUN_MINUTES).
+    #   - Chưa online -> mới thật sự giữ phiên (RUN_MINUTES); cron ~15' sẽ nối tiếp khi hết ca.
   workflow_dispatch: # Cho phép bấm chạy thủ công
 
 jobs:
@@ -50,8 +48,8 @@ jobs:
         SOWORK_SESSION: ${{ secrets.SOWORK_SESSION }}
         SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         SLACK_USER_ID: ${{ secrets.SLACK_USER_ID }}
-        RUN_MINUTES: '340'   # giữ ~5h40m; khi kết thúc, lượt cron kế (≤20 phút sau) sẽ nối tiếp
-        STOP_HOUR_VN: '23'
+        RUN_MINUTES: '340'   # giữ ~5h40m; khi hết ca, lượt cron kế (≤15 phút sau) nối tiếp
+        CONTINUOUS: '1'      # giữ Online 24h T2–T6; chỉ tự dừng khi sang cuối tuần (giờ VN)
       run: node keepalive.js
 
     - name: Lưu ảnh chụp lỗi (nếu có)
